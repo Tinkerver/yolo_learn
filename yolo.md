@@ -39,7 +39,7 @@ typora-root-url: graph
 
 ​	通过约束预测边框的位置，将预测边框的中心约束在特定gird网格内
 
-![image-20211115174958963](/image-20211115174958963.png)
+![image-20211115174958963](./graph/image-20211115174958963.png)
 
 ​	
 
@@ -85,7 +85,7 @@ typora-root-url: graph
 
 ​	是带有csp结构的darknet-53
 
-![img](/v2-c7d4145838f7ffb009e0fb9bac00f0ed_720w.jpg)
+![img](./graph/v2-c7d4145838f7ffb009e0fb9bac00f0ed_720w.jpg)
 
 ​	CSPNet的主要目的是使该体系结构能够实现更丰富的梯度组合信息，同时减少计算量。 通过将基础层的特征图划分为两个部分，然后通过提出的跨阶段层次结构将它们合并，可以实现此目标。 我们的主要概念是通过分割梯度流，使梯度流通过不同的网络路径传播。 这样，我们已经确认，通过切换串联和过渡步骤，传播的梯度信息可以具有较大的相关性差异。
 
@@ -109,7 +109,7 @@ typora-root-url: graph
 
 ​	在原有iou损失上添加正则损失项![[公式]](https://www.zhihu.com/equation?tex=L_%7BGIOU%7D%3D1-IOU%28A%2CB%29%2B%5Cleft%7C+C-A%5Ccup+B%5Cright%7C%2F%5Cleft%7C+C%5Cright%7C)
 
-![img](/v2-ed0a35eced7eb0dfa5e5aa429b83cc2c_720w.jpg)
+![img](./graph/v2-ed0a35eced7eb0dfa5e5aa429b83cc2c_720w.jpg)
 
 可以在未重叠时表示损失。但会消耗大量的时间在预测框尝试与真实框接触上
 
@@ -129,7 +129,7 @@ typora-root-url: graph
 
 - c 为 A , B **最小包围框**的**对角线长度**
 
-- ![img](/v2-d45b585bb6eea904a3779bc23864a1b2_720w.jpg)
+- ![img](./graphv2-d45b585bb6eea904a3779bc23864a1b2_720w.jpg)
 
 #### ciou
 
@@ -139,9 +139,9 @@ typora-root-url: graph
 
 ![[公式]](https://www.zhihu.com/equation?tex=%5Calpha) 是一个正数， ![[公式]](https://www.zhihu.com/equation?tex=v) 用来测量长宽比的一致性（v measures the consistency of aspect ratio）。具体定义如下：
 
-![img](/v2-d377d062705931befb0300d3ac69b89e_720w.jpg)
+![img](./graph/v2-d377d062705931befb0300d3ac69b89e_720w.jpg)
 
-![img](/v2-bc194831f21dcb4d63597c93f1396410_720w.jpg)
+![img](./graph/v2-bc194831f21dcb4d63597c93f1396410_720w.jpg)
 
 - ![[公式]](https://www.zhihu.com/equation?tex=w%5E%7Bgt%7D) 和 ![[公式]](https://www.zhihu.com/equation?tex=h%5E%7Bgt%7D) 为真实框的宽、高
 - ![[公式]](https://www.zhihu.com/equation?tex=w) 和 ![[公式]](https://www.zhihu.com/equation?tex=h) 为预测框的宽、高
@@ -170,7 +170,7 @@ typora-root-url: graph
 
 ​	dilated encoder可以解决这些问题：
 
-![img](/v2-347bbbe090674ec22d7ca76b64fdacef_720w.jpg)
+![img](./graph/v2-347bbbe090674ec22d7ca76b64fdacef_720w.jpg)
 
 ​	它将最底层c5特征作为输入，更改通道数目，3*3精炼语义，链接四个空洞卷积的残差单元，在空洞卷积中空洞的设定不一定相等。使用四个连续的空洞残差单元可以混合多种不同的感受野，也就应对不同的目标尺寸。
 
