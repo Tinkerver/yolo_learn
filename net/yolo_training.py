@@ -85,7 +85,7 @@ class YOLOLoss(nn.Module):
         num_fg = 0.0
         for batch_idx in range(outputs.shape[0]):
             num_gt = len(labels[batch_idx])  # 取出对应标签
-            if num_gt == 0:  # 如果标签不存在
+            if num_gt == 0:  # 如果标签不存在，图片上没有真值框
                 cls_target = outputs.new_zeros((0, self.num_classes))  # 目标全部置零
                 reg_target = outputs.new_zeros((0, 4))
                 obj_target = outputs.new_zeros((total_num_anchors, 1))
@@ -97,28 +97,29 @@ class YOLOLoss(nn.Module):
                 cls_preds_per_image = cls_preds[batch_idx]  # 预测框种类
                 obj_preds_per_image = obj_preds[batch_idx]  # 预测框置信度
 
+                #对应的真值类，对应的预选框，正样本预选框与真值类的iou矩阵，匹配的真值框，预选框数量
                 gt_matched_classes, fg_mask, pred_ious_this_matching, matched_gt_inds, num_fg_img = self.get_assignments(
                     num_gt, total_num_anchors, gt_bboxes_per_image, gt_classes, bboxes_preds_per_image,
                     cls_preds_per_image, obj_preds_per_image,
                     expanded_strides, x_shifts, y_shifts,
                 )
                 torch.cuda.empty_cache()
-                num_fg += num_fg_img
+                num_fg += num_fg_img    #正特征点数量总和
                 cls_target = F.one_hot(gt_matched_classes.to(torch.int64),
-                                       self.num_classes).float() * pred_ious_this_matching.unsqueeze(-1)
-                obj_target = fg_mask.unsqueeze(-1)
-                reg_target = gt_bboxes_per_image[matched_gt_inds]
+                                       self.num_classes).float() * pred_ious_this_matching.unsqueeze(-1)#得到一个[成功匹配真值框数，种类数]，数值为iou独热
+                obj_target = fg_mask.unsqueeze(-1)#得到一个[预选框总数，1],里面被选为正样本的部分置1
+                reg_target = gt_bboxes_per_image[matched_gt_inds]#得到一个[预选框数，4],保存成功匹配的真值框中的信息
             cls_targets.append(cls_target)
-            reg_targets.append(reg_target)
+            reg_targets.append(reg_target)  #[图片数，预选框数，4]
             obj_targets.append(obj_target.type(cls_target.type()))
-            fg_masks.append(fg_mask)
+            fg_masks.append(fg_mask)        #[图片数，预选框总数]
         cls_targets = torch.cat(cls_targets, 0)
-        reg_targets = torch.cat(reg_targets, 0)
+        reg_targets = torch.cat(reg_targets, 0) #[图片数*预选框数，4]
         obj_targets = torch.cat(obj_targets, 0)
-        fg_masks = torch.cat(fg_masks, 0)
+        fg_masks = torch.cat(fg_masks, 0)   #[图片数*预选框总数]
 
         num_fg = max(num_fg, 1)
-        loss_iou = (self.iou_loss(bbox_preds.view(-1, 4)[fg_masks], reg_targets)).sum()  # 计算框位置的iou损失，加和
+        loss_iou = (self.iou_loss(bbox_preds.view(-1, 4)[fg_masks], reg_targets)).sum()  # 计算框位置的iou损失，加和[预选框数]加和
         loss_obj = (self.bcewithlog_loss(obj_preds.view(-1, 1), obj_targets)).sum()  # 计算物体的置信度交叉熵
         loss_cls = (
             self.bcewithlog_loss(cls_preds.view(-1, self.num_classes)[fg_masks], cls_targets)).sum()  # 计算物体的类别损失交叉熵
@@ -323,15 +324,15 @@ class YOLOLoss(nn.Module):
         # ------------------------------------------------------------#
         #   对fg_mask进行更新
         # ------------------------------------------------------------#
-        fg_mask[fg_mask.clone()] = fg_mask_inboxes
+        fg_mask[fg_mask.clone()] = fg_mask_inboxes  #更新成为了所有正样本预选框
 
         # ------------------------------------------------------------#
         #   获得特征点对应的物品种类
         # ------------------------------------------------------------#
-        matched_gt_inds = matching_matrix[:, fg_mask_inboxes].argmax(0)
-        gt_matched_classes = gt_classes[matched_gt_inds]
+        matched_gt_inds = matching_matrix[:, fg_mask_inboxes].argmax(0) #得到预选框所拟合的真值框的对应[预选框数目]，数值为真值框序号
+        gt_matched_classes = gt_classes[matched_gt_inds]    #得到对应的真值框的种类
 
-        pred_ious_this_matching = (matching_matrix * pair_wise_ious).sum(0)[fg_mask_inboxes]
+        pred_ious_this_matching = (matching_matrix * pair_wise_ious).sum(0)[fg_mask_inboxes]    #得到对应拟合真值框的iou
         return num_fg, gt_matched_classes, pred_ious_this_matching, matched_gt_inds
 
     def forward(self, inputs, labels=None):  # input尺寸为[batch_size,num_class+5,20/40/80,20/40/80]若干方格下的位置+类别
@@ -348,3 +349,25 @@ class YOLOLoss(nn.Module):
             outputs.append(output)  # 记录转化为图片根据像素的位置
 
         return self.get_losses(x_shifts, y_shifts, expanded_strides, labels, torch.cat(outputs, 1))
+
+
+#定义网络参数初始化的类型
+def weights_init(net, init_type='normal', init_gain = 0.02):
+    def init_func(m):
+        classname = m.__class__.__name__
+        if hasattr(m, 'weight') and classname.find('Conv') != -1:
+            if init_type == 'normal':
+                torch.nn.init.normal_(m.weight.data, 0.0, init_gain)
+            elif init_type == 'xavier':
+                torch.nn.init.xavier_normal_(m.weight.data, gain=init_gain)
+            elif init_type == 'kaiming':
+                torch.nn.init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+            elif init_type == 'orthogonal':
+                torch.nn.init.orthogonal_(m.weight.data, gain=init_gain)
+            else:
+                raise NotImplementedError('initialization method [%s] is not implemented' % init_type)
+        elif classname.find('BatchNorm2d') != -1:
+            torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+            torch.nn.init.constant_(m.bias.data, 0.0)
+    print('initialize network with %s type' % init_type)
+    net.apply(init_func)
