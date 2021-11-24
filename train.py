@@ -68,3 +68,89 @@ if __name__ == "__main__":
     yolo_loss = YOLOLoss(num_classes)
     loss_history = LossHistory("logs/")
 
+    with open(train_annotation_path) as f:
+        train_lines = f.readlines()
+    with open(val_annotation_path) as f:
+        val_lines   = f.readlines()
+    num_train   = len(train_lines)
+    num_val     = len(val_lines)
+
+    #设定冻结阶段的训练
+    if True:
+        batch_size = Freeze_batch_size
+        lr = Freeze_lr
+        start_epoch = Init_Epoch
+        end_epoch = Freeze_Epoch
+
+        epoch_step = num_train // batch_size    #设置一个epoch下要几个batch
+        epoch_step_val = num_val // batch_size
+
+        if epoch_step == 0 or epoch_step_val == 0:  #至少训练集数量要比一个batch大
+            raise ValueError("数据集过小，无法进行训练，请扩充数据集。")
+
+        optimizer = optim.Adam(model_train.parameters(), lr, weight_decay=5e-4) #设置优化器
+        if Cosine_scheduler:
+            lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=1e-5)   #用不用余弦退火学习率
+        else:
+            lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.92)    #使用steplr的学习率调整方法
+
+        train_dataset = YoloDataset(train_lines, input_shape, num_classes, end_epoch - start_epoch, mosaic=mosaic,
+                                    train=True)
+        val_dataset = YoloDataset(val_lines, input_shape, num_classes, end_epoch - start_epoch, mosaic=False,
+                                  train=False)
+        gen = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True,
+                         drop_last=True, collate_fn=yolo_dataset_collate)
+        gen_val = DataLoader(val_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True,
+                             drop_last=True, collate_fn=yolo_dataset_collate)
+
+        # ------------------------------------#
+        #   冻结一定部分训练
+        # ------------------------------------#
+        if Freeze_Train:
+            for param in model.backbone.parameters():
+                param.requires_grad = False
+
+        for epoch in range(start_epoch, end_epoch):
+            #逐步优化
+            fit_one_epoch(model_train, model, yolo_loss, loss_history, optimizer, epoch,
+                          epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
+            #学习率调整，一个epoch*0.92
+            lr_scheduler.step()
+
+    if True:
+        batch_size = Unfreeze_batch_size
+        lr = Unfreeze_lr
+        start_epoch = Freeze_Epoch
+        end_epoch = UnFreeze_Epoch
+
+        epoch_step = num_train // batch_size
+        epoch_step_val = num_val // batch_size
+
+        if epoch_step == 0 or epoch_step_val == 0:
+            raise ValueError("数据集过小，无法进行训练，请扩充数据集。")
+
+        optimizer = optim.Adam(model_train.parameters(), lr, weight_decay=5e-4)
+        if Cosine_scheduler:
+            lr_scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=5, eta_min=1e-5)
+        else:
+            lr_scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.92)
+
+        train_dataset = YoloDataset(train_lines, input_shape, num_classes, end_epoch - start_epoch, mosaic=mosaic,
+                                    train=True)
+        val_dataset = YoloDataset(val_lines, input_shape, num_classes, end_epoch - start_epoch, mosaic=False,
+                                  train=False)
+        gen = DataLoader(train_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True,
+                         drop_last=True, collate_fn=yolo_dataset_collate)
+        gen_val = DataLoader(val_dataset, shuffle=True, batch_size=batch_size, num_workers=num_workers, pin_memory=True,
+                             drop_last=True, collate_fn=yolo_dataset_collate)
+        # ------------------------------------#
+        #   解冻后训练，这一部分与前面不同，其它基本相似。
+        # ------------------------------------#
+        if Freeze_Train:
+            for param in model.backbone.parameters():
+                param.requires_grad = True
+
+        for epoch in range(start_epoch, end_epoch):
+            fit_one_epoch(model_train, model, yolo_loss, loss_history, optimizer, epoch,
+                          epoch_step, epoch_step_val, gen, gen_val, end_epoch, Cuda)
+            lr_scheduler.step()

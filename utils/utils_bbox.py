@@ -32,7 +32,7 @@ def yolo_correct_boxes(box_xy, box_wh, input_shape, image_shape, letterbox_image
 def decode_outputs(outputs, input_shape):
     grids   = []
     strides = []
-    hw      = [x.shape[-2:] for x in outputs]
+    hw      = [x.shape[-2:] for x in outputs]   #得到输出的三组长宽维度
     #---------------------------------------------------#
     #   outputs输入前代表每个特征层的预测结果
     #   batch_size, 4 + 1 + num_classes, 80, 80 => batch_size, 4 + 1 + num_classes, 6400
@@ -60,7 +60,7 @@ def decode_outputs(outputs, input_shape):
         shape           = grid.shape[:2]
 
         grids.append(grid)
-        strides.append(torch.full((shape[0], shape[1], 1), input_shape[0] / h))
+        strides.append(torch.full((shape[0], shape[1], 1), input_shape[0] / h)) #每一个格子的长宽
     #---------------------------#
     #   将网格点堆叠到一起
     #   1, 6400, 2
@@ -74,12 +74,12 @@ def decode_outputs(outputs, input_shape):
     #------------------------#
     #   根据网格点进行解码
     #------------------------#
-    outputs[..., :2]    = (outputs[..., :2] + grids) * strides
-    outputs[..., 2:4]   = torch.exp(outputs[..., 2:4]) * strides
+    outputs[..., :2]    = (outputs[..., :2] + grids) * strides  #恢复中心
+    outputs[..., 2:4]   = torch.exp(outputs[..., 2:4]) * strides    #恢复宽高
     #-----------------#
     #   归一化
     #-----------------#
-    outputs[..., [0,2]] = outputs[..., [0,2]] / input_shape[1]
+    outputs[..., [0,2]] = outputs[..., [0,2]] / input_shape[1]  #归一化到0-1
     outputs[..., [1,3]] = outputs[..., [1,3]] / input_shape[0]
     return outputs
 
@@ -119,7 +119,7 @@ def non_max_suppression(prediction, num_classes, input_shape, image_shape, lette
         #   7的内容为：x1, y1, x2, y2, obj_conf, class_conf, class_pred
         #-------------------------------------------------------------------------#
         detections = torch.cat((image_pred[:, :5], class_conf, class_pred.float()), 1)
-        detections = detections[conf_mask]
+        detections = detections[conf_mask]  #所有置信度>0.5的框
         
         nms_out_index = boxes.batched_nms(
             detections[:, :4],
